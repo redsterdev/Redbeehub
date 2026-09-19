@@ -364,3 +364,110 @@ LocalPlayer.CharacterAdded:Connect(function()
     state.currentTool = nil
     task.wait(0.5)
 end)
+-- ============ UI ============
+local Window = Rayfield:CreateWindow({
+    Name = "🔴 Red Bee Hub",
+    LoadingTitle = "Red Bee Hub",
+    LoadingSubtitle = "Auto Tools V5",
+    ConfigurationSaving = {Enabled = true, FolderName = "RedBeeHub", FileName = "AutoTools_V5"},
+    KeySystem = false,
+    KeySettings = {Title = "Red Bee Hub", Subtitle = "Key System", Note = "No key required",
+        FileName = "Key", SaveKey = true, GrabKeyFromSite = false, Key = {"Hello"}}
+})
+
+local SSJTab = Window:CreateTab("🏹 SSJ", 4483362458)
+SSJTab:CreateSection("Auto Slingshot")
+SSJTab:CreateToggle({Name = "Enable Auto SSJ", CurrentValue = false, Flag = "SSJOn",
+    Callback = function(v) config.ssjEnabled = v end})
+SSJTab:CreateSlider({Name = "Click Delay", Range = {0.05, 0.5}, Increment = 0.01, Suffix = "s",
+    CurrentValue = 0.22, Flag = "SSJDelay", Callback = function(v) config.clickDelay = v end})
+SSJTab:CreateToggle({Name = "Auto Fall Protection", CurrentValue = true, Flag = "SSJFall",
+    Callback = function(v) config.autoFall = v end})
+SSJTab:CreateSlider({Name = "Fall Trigger Speed", Range = {-20, -1}, Increment = 1, Suffix = " studs/s",
+    CurrentValue = -5, Flag = "SSJFallThresh", Callback = function(v) config.fallThreshold = v end})
+SSJTab:CreateSlider({Name = "Min Height", Range = {5, 100}, Increment = 5, Suffix = " studs",
+    CurrentValue = 15, Flag = "SSJMinH", Callback = function(v) config.minHeight = v end})
+
+local RocketTab = Window:CreateTab("🚀 Rocket", 4483362458)
+RocketTab:CreateSection("Auto Rocket")
+RocketTab:CreateToggle({Name = "Enable Auto Rocket", CurrentValue = false, Flag = "RocketOn",
+    Callback = function(v) config.rocketEnabled = v end})
+RocketTab:CreateDropdown({Name = "Target Priority",
+    Options = {"nearest", "lowest", "tower", "crowd"},
+    CurrentOption = {"nearest"}, Flag = "RocketTarget",
+    Callback = function(opt) config.rocketTarget = type(opt) == "table" and opt[1] or opt end})
+RocketTab:CreateSlider({Name = "Fire Delay", Range = {0.5, 5}, Increment = 0.1, Suffix = "s",
+    CurrentValue = 1.5, Flag = "RocketDelay", Callback = function(v) config.rocketDelay = v end})
+RocketTab:CreateSlider({Name = "Min Distance", Range = {5, 100}, Increment = 5, Suffix = " studs",
+    CurrentValue = 20, Flag = "RocketMin", Callback = function(v) config.rocketMinDist = v end})
+RocketTab:CreateSlider({Name = "Max Distance", Range = {100, 1000}, Increment = 25, Suffix = " studs",
+    CurrentValue = 500, Flag = "RocketMax", Callback = function(v) config.rocketMaxDist = v end})
+
+local TrowelTab = Window:CreateTab("🧱 Trowel", 4483362458)
+TrowelTab:CreateSection("Auto Wall Placement")
+TrowelTab:CreateToggle({Name = "Enable Auto Trowel", CurrentValue = false, Flag = "TrowelOn",
+    Callback = function(v) config.trowelEnabled = v end})
+TrowelTab:CreateDropdown({Name = "Place Mode",
+    Options = {"forward", "down", "behind"},
+    CurrentOption = {"forward"}, Flag = "TrowelMode",
+    Callback = function(opt) config.trowelMode = type(opt) == "table" and opt[1] or opt end})
+TrowelTab:CreateSlider({Name = "Place Delay", Range = {0.1, 1}, Increment = 0.05, Suffix = "s",
+    CurrentValue = 0.25, Flag = "TrowelDelay", Callback = function(v) config.trowelDelay = v end})
+
+local BombTab = Window:CreateTab("💣 Bomb", 4483362458)
+BombTab:CreateSection("Auto Bomb")
+BombTab:CreateToggle({Name = "Enable Auto Bomb", CurrentValue = false, Flag = "BombOn",
+    Callback = function(v) config.bombEnabled = v end})
+BombTab:CreateDropdown({Name = "Strategy",
+    Options = {"tower", "crowd", "support", "spot"},
+    CurrentOption = {"tower"}, Flag = "BombStrategy",
+    Callback = function(opt) config.bombStrategy = type(opt) == "table" and opt[1] or opt end})
+BombTab:CreateSlider({Name = "Bomb Delay", Range = {0.5, 5}, Increment = 0.1, Suffix = "s",
+    CurrentValue = 2.0, Flag = "BombDelay", Callback = function(v) config.bombDelay = v end})
+BombTab:CreateButton({Name = "📍 Set Custom Spot (tap a part)",
+    Callback = function()
+        local mouse = LocalPlayer:GetMouse()
+        if mouse and mouse.Hit then
+            config.bombSpot = mouse.Hit.Position
+            Rayfield:Notify({Title = "Red Bee Hub",
+                Content = "Spot set: " .. tostring(math.floor(mouse.Hit.Position.X)) .. ", " .. tostring(math.floor(mouse.Hit.Position.Z)),
+                Duration = 3})
+        end
+    end})
+
+local BonusTab = Window:CreateTab("⚡ Bonus", 4483362458)
+BonusTab:CreateSection("Superball")
+BonusTab:CreateToggle({Name = "Enable Auto Superball", CurrentValue = false, Flag = "BallOn",
+    Callback = function(v) config.ballEnabled = v end})
+BonusTab:CreateDropdown({Name = "Target",
+    Options = {"nearest", "lowest", "tower"},
+    CurrentOption = {"nearest"}, Flag = "BallTarget",
+    Callback = function(opt) config.ballTarget = type(opt) == "table" and opt[1] or opt end})
+BonusTab:CreateSlider({Name = "Fire Delay", Range = {0.2, 3}, Increment = 0.1, Suffix = "s",
+    CurrentValue = 0.8, Flag = "BallDelay", Callback = function(v) config.ballDelay = v end})
+
+BonusTab:CreateSection("Paintball Gun")
+BonusTab:CreateToggle({Name = "Enable Auto Paintball", CurrentValue = false, Flag = "PaintOn",
+    Callback = function(v) config.paintEnabled = v end})
+BonusTab:CreateDropdown({Name = "Target",
+    Options = {"nearest", "lowest", "tower"},
+    CurrentOption = {"nearest"}, Flag = "PaintTarget",
+    Callback = function(opt) config.paintTarget = type(opt) == "table" and opt[1] or opt end})
+BonusTab:CreateSlider({Name = "Fire Delay", Range = {0.1, 2}, Increment = 0.1, Suffix = "s",
+    CurrentValue = 0.4, Flag = "PaintDelay", Callback = function(v) config.paintDelay = v end})
+
+local InfoTab = Window:CreateTab("Info", 7733995141)
+InfoTab:CreateSection("Tools")
+InfoTab:CreateLabel("• SSJ (Slingshot)")
+InfoTab:CreateLabel("• Rocket (4 target modes)")
+InfoTab:CreateLabel("• Trowel (3 place modes)")
+InfoTab:CreateLabel("• Bomb (4 strategies)")
+InfoTab:CreateLabel("• Superball (bonus)")
+InfoTab:CreateLabel("• PaintballGun (bonus)")
+InfoTab:CreateSection("How It Works")
+InfoTab:CreateLabel("Uses standard Tool:Activate()")
+InfoTab:CreateLabel("Auto-aims camera at target")
+InfoTab:CreateLabel("Adds human jitter + ping comp")
+InfoTab:CreateLabel("Respects tool equip timing")
+
+print("[RED BEE HUB] Auto Tools V5 Loaded ✅")
