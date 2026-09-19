@@ -1,11 +1,9 @@
--- Red Bee Hub | Auto Tools V5 (Part 1 of 2 - Core)
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 local Stats = game:GetService("Stats")
 local LocalPlayer = Players.LocalPlayer
-
 local config = {
     ssjEnabled=false, clickDelay=0.22, autoJump=true, autoAim=true,
     autoFall=true, fallThreshold=-5, minHeight=15, aimSmooth=0.85,
@@ -17,20 +15,17 @@ local config = {
     ballEnabled=false, ballDelay=0.8, ballTarget="nearest",
     paintEnabled=false, paintDelay=0.4, paintTarget="nearest",
 }
-
 local state = {
     holdingJump=false, lastClick={}, originalAim=nil,
     fallProtectionActive=false, currentTool=nil, toolEquippedAt=0,
     bombTargetPos=nil,
 }
-
 local function getPing()
     local ok,p = pcall(function()
         return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
     end)
     return ok and p or 50
 end
-
 local function getAdjustedDelay(base)
     local d = base
     if config.pingCompensate then d = d + (getPing() / 2000) end
@@ -39,7 +34,6 @@ local function getAdjustedDelay(base)
     end
     return math.max(d, 0.05)
 end
-
 local function getChar() return LocalPlayer.Character end
 local function getHRP()
     local c = getChar()
@@ -49,7 +43,6 @@ local function getHum()
     local c = getChar()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
-
 local function findTool(name)
     local c = getChar()
     local bp = LocalPlayer:FindFirstChild("Backpack")
@@ -63,7 +56,6 @@ local function findTool(name)
     end
     return nil
 end
-
 local function equipAndReady(toolName)
     local c = getChar()
     local hum = getHum()
@@ -81,7 +73,6 @@ local function equipAndReady(toolName)
     task.wait(0.1)
     return c:FindFirstChild(toolName) or tool
 end
-
 local function findTarget(mode)
     local hrp = getHRP()
     if not hrp then return nil end
@@ -119,7 +110,6 @@ local function findTarget(mode)
     end
     return candidates[1].root
 end
-
 local function aimAt(pos, smooth)
     if not config.autoAim then return end
     local cam = workspace.CurrentCamera
@@ -129,14 +119,12 @@ local function aimAt(pos, smooth)
     local target = CFrame.new(cam.CFrame.Position, cam.CFrame.Position + dir)
     cam.CFrame = cam.CFrame:Lerp(target, smooth or 0.5)
 end
-
 local function restoreAim()
     if state.originalAim and workspace.CurrentCamera then
         workspace.CurrentCamera.CFrame = state.originalAim
     end
     state.originalAim = nil
 end
-
 local function getGroundDistance()
     local hrp = getHRP()
     if not hrp then return 0 end
@@ -146,7 +134,6 @@ local function getGroundDistance()
     local r = workspace:Raycast(hrp.Position, Vector3.new(0, -500, 0), p)
     return r and (hrp.Position - r.Position).Magnitude or 999
 end
-
 local function isFalling()
     local hrp = getHRP()
     local hum = getHum()
@@ -154,12 +141,10 @@ local function isFalling()
     return hrp.AssemblyLinearVelocity.Y < config.fallThreshold
         and hum.FloorMaterial == Enum.Material.Air
 end
-
 local function setJump(s)
     local h = getHum()
     if h then h.Jump = s end
 end
-
 local function fireSlingshot()
     local tool = equipAndReady("Slingshot")
     if not tool then return false end
@@ -168,7 +153,6 @@ local function fireSlingshot()
     pcall(function() tool:Activate() end)
     return true
 end
-
 local function runSSJ()
     local hrp = getHRP()
     if hrp and config.autoAim then
@@ -185,7 +169,6 @@ local function runSSJ()
         fireSlingshot()
     end
 end
-
 local function fireRocket()
     local tool = equipAndReady("Rocket")
     if not tool then return false end
@@ -205,7 +188,6 @@ local function fireRocket()
     pcall(function() tool:Activate() end)
     return true
 end
-
 local function placeWall()
     local tool = equipAndReady("Trowel")
     if not tool then return false end
@@ -226,7 +208,6 @@ local function placeWall()
     pcall(function() tool:Activate() end)
     return true
 end
-
 local function findBombSpot()
     if config.bombStrategy == "spot" then return config.bombSpot end
     if config.bombStrategy == "tower" then
@@ -252,7 +233,6 @@ local function findBombSpot()
     end
     return nil
 end
-
 local function placeBomb()
     local tool = equipAndReady("Bomb")
     if not tool then return false end
@@ -267,7 +247,6 @@ local function placeBomb()
     pcall(function() tool:Activate() end)
     return true
 end
-
 local function fireSuperball()
     local tool = equipAndReady("Superball")
     if not tool then return false end
@@ -279,7 +258,6 @@ local function fireSuperball()
     pcall(function() tool:Activate() end)
     return true
 end
-
 local function firePaintball()
     local tool = equipAndReady("PaintballGun")
     if not tool then return false end
@@ -291,7 +269,6 @@ local function firePaintball()
     pcall(function() tool:Activate() end)
     return true
 end
-
 RunService.RenderStepped:Connect(function()
     if config.ssjEnabled then
         if config.autoFall then
@@ -355,7 +332,6 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
-
 LocalPlayer.CharacterAdded:Connect(function()
     state.holdingJump = false
     state.lastClick = {}
@@ -364,7 +340,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     state.currentTool = nil
     task.wait(0.5)
 end)
--- ============ UI ============
 local Window = Rayfield:CreateWindow({
     Name = "🔴 Red Bee Hub",
     LoadingTitle = "Red Bee Hub",
@@ -374,7 +349,6 @@ local Window = Rayfield:CreateWindow({
     KeySettings = {Title = "Red Bee Hub", Subtitle = "Key System", Note = "No key required",
         FileName = "Key", SaveKey = true, GrabKeyFromSite = false, Key = {"Hello"}}
 })
-
 local SSJTab = Window:CreateTab("🏹 SSJ", 4483362458)
 SSJTab:CreateSection("Auto Slingshot")
 SSJTab:CreateToggle({Name = "Enable Auto SSJ", CurrentValue = false, Flag = "SSJOn",
@@ -387,7 +361,6 @@ SSJTab:CreateSlider({Name = "Fall Trigger Speed", Range = {-20, -1}, Increment =
     CurrentValue = -5, Flag = "SSJFallThresh", Callback = function(v) config.fallThreshold = v end})
 SSJTab:CreateSlider({Name = "Min Height", Range = {5, 100}, Increment = 5, Suffix = " studs",
     CurrentValue = 15, Flag = "SSJMinH", Callback = function(v) config.minHeight = v end})
-
 local RocketTab = Window:CreateTab("🚀 Rocket", 4483362458)
 RocketTab:CreateSection("Auto Rocket")
 RocketTab:CreateToggle({Name = "Enable Auto Rocket", CurrentValue = false, Flag = "RocketOn",
@@ -402,7 +375,6 @@ RocketTab:CreateSlider({Name = "Min Distance", Range = {5, 100}, Increment = 5, 
     CurrentValue = 20, Flag = "RocketMin", Callback = function(v) config.rocketMinDist = v end})
 RocketTab:CreateSlider({Name = "Max Distance", Range = {100, 1000}, Increment = 25, Suffix = " studs",
     CurrentValue = 500, Flag = "RocketMax", Callback = function(v) config.rocketMaxDist = v end})
-
 local TrowelTab = Window:CreateTab("🧱 Trowel", 4483362458)
 TrowelTab:CreateSection("Auto Wall Placement")
 TrowelTab:CreateToggle({Name = "Enable Auto Trowel", CurrentValue = false, Flag = "TrowelOn",
@@ -413,7 +385,6 @@ TrowelTab:CreateDropdown({Name = "Place Mode",
     Callback = function(opt) config.trowelMode = type(opt) == "table" and opt[1] or opt end})
 TrowelTab:CreateSlider({Name = "Place Delay", Range = {0.1, 1}, Increment = 0.05, Suffix = "s",
     CurrentValue = 0.25, Flag = "TrowelDelay", Callback = function(v) config.trowelDelay = v end})
-
 local BombTab = Window:CreateTab("💣 Bomb", 4483362458)
 BombTab:CreateSection("Auto Bomb")
 BombTab:CreateToggle({Name = "Enable Auto Bomb", CurrentValue = false, Flag = "BombOn",
@@ -434,7 +405,6 @@ BombTab:CreateButton({Name = "📍 Set Custom Spot (tap a part)",
                 Duration = 3})
         end
     end})
-
 local BonusTab = Window:CreateTab("⚡ Bonus", 4483362458)
 BonusTab:CreateSection("Superball")
 BonusTab:CreateToggle({Name = "Enable Auto Superball", CurrentValue = false, Flag = "BallOn",
@@ -445,7 +415,6 @@ BonusTab:CreateDropdown({Name = "Target",
     Callback = function(opt) config.ballTarget = type(opt) == "table" and opt[1] or opt end})
 BonusTab:CreateSlider({Name = "Fire Delay", Range = {0.2, 3}, Increment = 0.1, Suffix = "s",
     CurrentValue = 0.8, Flag = "BallDelay", Callback = function(v) config.ballDelay = v end})
-
 BonusTab:CreateSection("Paintball Gun")
 BonusTab:CreateToggle({Name = "Enable Auto Paintball", CurrentValue = false, Flag = "PaintOn",
     Callback = function(v) config.paintEnabled = v end})
@@ -455,7 +424,6 @@ BonusTab:CreateDropdown({Name = "Target",
     Callback = function(opt) config.paintTarget = type(opt) == "table" and opt[1] or opt end})
 BonusTab:CreateSlider({Name = "Fire Delay", Range = {0.1, 2}, Increment = 0.1, Suffix = "s",
     CurrentValue = 0.4, Flag = "PaintDelay", Callback = function(v) config.paintDelay = v end})
-
 local InfoTab = Window:CreateTab("Info", 7733995141)
 InfoTab:CreateSection("Tools")
 InfoTab:CreateLabel("• SSJ (Slingshot)")
@@ -469,5 +437,4 @@ InfoTab:CreateLabel("Uses standard Tool:Activate()")
 InfoTab:CreateLabel("Auto-aims camera at target")
 InfoTab:CreateLabel("Adds human jitter + ping comp")
 InfoTab:CreateLabel("Respects tool equip timing")
-
 print("[RED BEE HUB] Auto Tools V5 Loaded ✅")
