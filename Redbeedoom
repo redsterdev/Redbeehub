@@ -1,0 +1,366 @@
+-- Red Bee Hub | Auto Tools V5 (Part 1 of 2 - Core)
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local LocalPlayer = Players.LocalPlayer
+
+local config = {
+    ssjEnabled=false, clickDelay=0.22, autoJump=true, autoAim=true,
+    autoFall=true, fallThreshold=-5, minHeight=15, aimSmooth=0.85,
+    humanJitter=true, jitterAmount=0.03, pingCompensate=true,
+    rocketEnabled=false, rocketTarget="nearest", rocketDelay=1.5,
+    rocketMinDist=20, rocketMaxDist=500,
+    trowelEnabled=false, trowelDelay=0.25, trowelMode="forward",
+    bombEnabled=false, bombStrategy="tower", bombDelay=2.0, bombSpot=nil,
+    ballEnabled=false, ballDelay=0.8, ballTarget="nearest",
+    paintEnabled=false, paintDelay=0.4, paintTarget="nearest",
+}
+
+local state = {
+    holdingJump=false, lastClick={}, originalAim=nil,
+    fallProtectionActive=false, currentTool=nil, toolEquippedAt=0,
+    bombTargetPos=nil,
+}
+
+local function getPing()
+    local ok,p = pcall(function()
+        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+    end)
+    return ok and p or 50
+end
+
+local function getAdjustedDelay(base)
+    local d = base
+    if config.pingCompensate then d = d + (getPing() / 2000) end
+    if config.humanJitter then
+        d = d + (math.random() * config.jitterAmount * 2 - config.jitterAmount)
+    end
+    return math.max(d, 0.05)
+end
+
+local function getChar() return LocalPlayer.Character end
+local function getHRP()
+    local c = getChar()
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+local function getHum()
+    local c = getChar()
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function findTool(name)
+    local c = getChar()
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if c then
+        local t = c:FindFirstChild(name)
+        if t and t:IsA("Tool") then return t end
+    end
+    if bp then
+        local t = bp:FindFirstChild(name)
+        if t and t:IsA("Tool") then return t end
+    end
+    return nil
+end
+
+local function equipAndReady(toolName)
+    local c = getChar()
+    local hum = getHum()
+    if not c or not hum then return nil end
+    local equipped = c:FindFirstChild(toolName)
+    if equipped and equipped:IsA("Tool") then
+        state.currentTool = equipped
+        return equipped
+    end
+    local tool = findTool(toolName)
+    if not tool then return nil end
+    hum:EquipTool(tool)
+    state.toolEquippedAt = tick()
+    state.currentTool = tool
+    task.wait(0.1)
+    return c:FindFirstChild(toolName) or tool
+end
+
+local function findTarget(mode)
+    local hrp = getHRP()
+    if not hrp then return nil end
+    local myPos = hrp.Position
+    local candidates = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local r = p.Character:FindFirstChild("HumanoidRootPart")
+            local h = p.Character:FindFirstChildOfClass("Humanoid")
+            if r and h and h.Health > 0 then
+                local d = (r.Position - myPos).Magnitude
+                if d >= config.rocketMinDist and d <= config.rocketMaxDist then
+                    table.insert(candidates, {root=r, dist=d, hp=h.Health, y=r.Position.Y})
+                end
+            end
+        end
+    end
+    if #candidates == 0 then return nil end
+    if mode == "nearest" then
+        table.sort(candidates, function(a,b) return a.dist < b.dist end)
+    elseif mode == "lowest" then
+        table.sort(candidates, function(a,b) return a.hp < b.hp end)
+    elseif mode == "tower" or mode == "highest" then
+        table.sort(candidates, function(a,b) return a.y > b.y end)
+    elseif mode == "crowd" then
+        for _, a in ipairs(candidates) do
+            a.neighbors = 0
+            for _, b in ipairs(candidates) do
+                if a ~= b and (a.root.Position - b.root.Position).Magnitude < 15 then
+                    a.neighbors = a.neighbors + 1
+                end
+            end
+        end
+        table.sort(candidates, function(a,b) return a.neighbors > b.neighbors end)
+    end
+    return candidates[1].root
+end
+
+local function aimAt(pos, smooth)
+    if not config.autoAim then return end
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if not state.originalAim then state.originalAim = cam.CFrame end
+    local dir = (pos - cam.CFrame.Position).Unit
+    local target = CFrame.new(cam.CFrame.Position, cam.CFrame.Position + dir)
+    cam.CFrame = cam.CFrame:Lerp(target, smooth or 0.5)
+end
+
+local function restoreAim()
+    if state.originalAim and workspace.CurrentCamera then
+        workspace.CurrentCamera.CFrame = state.originalAim
+    end
+    state.originalAim = nil
+end
+
+local function getGroundDistance()
+    local hrp = getHRP()
+    if not hrp then return 0 end
+    local p = RaycastParams.new()
+    p.FilterDescendantsInstances = {getChar()}
+    p.FilterType = Enum.RaycastFilterType.Exclude
+    local r = workspace:Raycast(hrp.Position, Vector3.new(0, -500, 0), p)
+    return r and (hrp.Position - r.Position).Magnitude or 999
+end
+
+local function isFalling()
+    local hrp = getHRP()
+    local hum = getHum()
+    if not hrp or not hum then return false end
+    return hrp.AssemblyLinearVelocity.Y < config.fallThreshold
+        and hum.FloorMaterial == Enum.Material.Air
+end
+
+local function setJump(s)
+    local h = getHum()
+    if h then h.Jump = s end
+end
+
+local function fireSlingshot()
+    local tool = equipAndReady("Slingshot")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+local function runSSJ()
+    local hrp = getHRP()
+    if hrp and config.autoAim then
+        local lookAt = hrp.Position - Vector3.new(0,3,0) + hrp.CFrame.LookVector * 2
+        aimAt(lookAt, config.aimSmooth)
+    end
+    if config.autoJump and not state.holdingJump then
+        state.holdingJump = true
+        setJump(true)
+    end
+    local now = tick()
+    if now - (state.lastClick.ssj or 0) >= getAdjustedDelay(config.clickDelay) then
+        state.lastClick.ssj = now
+        fireSlingshot()
+    end
+end
+
+local function fireRocket()
+    local tool = equipAndReady("Rocket")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    local target = findTarget(config.rocketTarget)
+    if target then
+        local hrp = getHRP()
+        if hrp then
+            local dist = (target.Position - hrp.Position).Magnitude
+            local t = dist / 100
+            local lead = target.AssemblyLinearVelocity * t
+            aimAt(target.Position + lead, 0.7)
+        end
+    end
+    task.wait(0.05)
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+local function placeWall()
+    local tool = equipAndReady("Trowel")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    local hrp = getHRP()
+    if not hrp then return false end
+    local placePoint
+    if config.trowelMode == "forward" then
+        placePoint = hrp.Position + hrp.CFrame.LookVector * 8 - Vector3.new(0,2,0)
+    elseif config.trowelMode == "down" then
+        placePoint = hrp.Position - Vector3.new(0,5,0) + hrp.CFrame.LookVector * 4
+    elseif config.trowelMode == "behind" then
+        placePoint = hrp.Position - hrp.CFrame.LookVector * 8 - Vector3.new(0,2,0)
+    end
+    if placePoint then aimAt(placePoint, 0.6) end
+    task.wait(0.03)
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+local function findBombSpot()
+    if config.bombStrategy == "spot" then return config.bombSpot end
+    if config.bombStrategy == "tower" then
+        local highest, hy = nil, -math.huge
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Anchored then
+                local n = v.Name:lower()
+                if not n:find("baseplate") and not n:find("terrain") and not n:find("sky") then
+                    if v.Position.Y > hy and v.Size.Magnitude < 100 then
+                        hy = v.Position.Y
+                        highest = v
+                    end
+                end
+            end
+        end
+        if highest then return highest.Position + Vector3.new(0,3,0) end
+    elseif config.bombStrategy == "crowd" then
+        local t = findTarget("crowd")
+        if t then return t.Position end
+    elseif config.bombStrategy == "support" then
+        local t = findTarget("nearest")
+        if t then return t.Position - Vector3.new(0,4,0) end
+    end
+    return nil
+end
+
+local function placeBomb()
+    local tool = equipAndReady("Bomb")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    local spot = findBombSpot()
+    if spot then
+        aimAt(spot, 0.7)
+        state.bombTargetPos = spot
+    end
+    task.wait(0.05)
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+local function fireSuperball()
+    local tool = equipAndReady("Superball")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    local target = findTarget(config.ballTarget)
+    if target then aimAt(target.Position, 0.6) end
+    task.wait(0.03)
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+local function firePaintball()
+    local tool = equipAndReady("PaintballGun")
+    if not tool then return false end
+    local c = getChar()
+    if tool.Parent ~= c then return false end
+    local target = findTarget(config.paintTarget)
+    if target then aimAt(target.Position, 0.4) end
+    task.wait(0.02)
+    pcall(function() tool:Activate() end)
+    return true
+end
+
+RunService.RenderStepped:Connect(function()
+    if config.ssjEnabled then
+        if config.autoFall then
+            if isFalling() then
+                local h = getGroundDistance()
+                if h > config.minHeight then
+                    state.fallProtectionActive = true
+                    runSSJ()
+                end
+            elseif state.fallProtectionActive then
+                state.fallProtectionActive = false
+                state.holdingJump = false
+                setJump(false)
+                restoreAim()
+            end
+        end
+        if not state.fallProtectionActive then runSSJ() end
+    else
+        if state.holdingJump then
+            state.holdingJump = false
+            setJump(false)
+        end
+        if state.fallProtectionActive then
+            state.fallProtectionActive = false
+            restoreAim()
+        end
+    end
+    if config.rocketEnabled then
+        local now = tick()
+        if now - (state.lastClick.rocket or 0) >= getAdjustedDelay(config.rocketDelay) then
+            state.lastClick.rocket = now
+            fireRocket()
+        end
+    end
+    if config.trowelEnabled then
+        local now = tick()
+        if now - (state.lastClick.trowel or 0) >= getAdjustedDelay(config.trowelDelay) then
+            state.lastClick.trowel = now
+            placeWall()
+        end
+    end
+    if config.bombEnabled then
+        local now = tick()
+        if now - (state.lastClick.bomb or 0) >= getAdjustedDelay(config.bombDelay) then
+            state.lastClick.bomb = now
+            placeBomb()
+        end
+    end
+    if config.ballEnabled then
+        local now = tick()
+        if now - (state.lastClick.ball or 0) >= getAdjustedDelay(config.ballDelay) then
+            state.lastClick.ball = now
+            fireSuperball()
+        end
+    end
+    if config.paintEnabled then
+        local now = tick()
+        if now - (state.lastClick.paint or 0) >= getAdjustedDelay(config.paintDelay) then
+            state.lastClick.paint = now
+            firePaintball()
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    state.holdingJump = false
+    state.lastClick = {}
+    state.fallProtectionActive = false
+    state.originalAim = nil
+    state.currentTool = nil
+    task.wait(0.5)
+end)
